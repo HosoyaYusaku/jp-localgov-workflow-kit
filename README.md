@@ -96,8 +96,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 3.  **VBAモジュールのインポート:**
     * VBEのプロジェクトエクスプローラー上で右クリックし、「ファイルのインポート」を選択します。
     * [`vba_modules`](./vba_modules/)フォルダにある2つの`.bas`ファイルをインポートします。
-        * `FlowchartGenerator.bas`
-        * `LLMExporter.bas`
+        * `FlowchartGenerator.bas` (CreateFlowChart)
+        * `LLMExporter.bas` (ExportMarkdownForLLM)
 4.  **データシートの準備:**
     * サンプルファイル（`sample_data/Business_Process_List.xlsx`）の中身をコピーします。
     * 作成したマクロ有効ブックに新しいシートを追加し、データを貼り付けた後、**シート名を「業務リスト」に変更します。**
