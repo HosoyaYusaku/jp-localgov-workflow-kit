@@ -90,7 +90,7 @@ End Sub
 ' 「業務リスト」シートからデータを読み込みます。
 Private Function LoadTaskData() As Boolean
     LoadTaskData = False: If wsInput Is Nothing Then Exit Function
-    Dim lastRow As Long: lastRow = wsInput.Cells(wsInput.Rows.count, "A").End(xlUp).Row
+    Dim lastRow As Long: lastRow = wsInput.Cells(wsInput.Rows.Count, "A").End(xlUp).Row
     If lastRow < 2 Then Exit Function
 
     Dim dataArr As Variant: dataArr = wsInput.Range("A2:J" & lastRow).Value
@@ -117,17 +117,40 @@ Private Function LoadTaskData() As Boolean
     LoadTaskData = True
 End Function
 
+' --- シートの存在確認（安全な比較：前後スペースも無視しない）---
+Private Function SheetExists(wb As Workbook, ByVal sheetName As String) As Boolean
+    Dim ws As Worksheet
+    For Each ws In wb.Worksheets
+        If StrComp(Trim$(ws.Name), Trim$(sheetName), vbBinaryCompare) = 0 Then
+            SheetExists = True
+            Exit Function
+        End If
+    Next
+End Function
+
 ' フロー図と凡例を描画するための新しいシートを準備します。
 Private Function SetupWorksheets() As Boolean
-    On Error Resume Next: Set wsInput = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    If wsInput Is Nothing Then MsgBox "「" & INPUT_SHEET_NAME & "」シートが見つかりません。", vbCritical: Exit Function
-    Application.DisplayAlerts = False
+    Dim wb As Workbook
     On Error Resume Next
-    ThisWorkbook.Worksheets(OUTPUT_SHEET_NAME).Delete
-    ThisWorkbook.Worksheets(LEGEND_SHEET_NAME).Delete
-    Application.DisplayAlerts = True: On Error GoTo 0
-    Set wsOutput = ThisWorkbook.Worksheets.Add(After:=wsInput): wsOutput.Name = OUTPUT_SHEET_NAME
-    Set wsLegend = ThisWorkbook.Worksheets.Add(After:=wsOutput): wsLegend.Name = LEGEND_SHEET_NAME
+    Set wsInput = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
+    If wsInput Is Nothing Then Set wsInput = ActiveWorkbook.Worksheets(INPUT_SHEET_NAME)
+    On Error GoTo 0
+
+    If wsInput Is Nothing Then
+        MsgBox "「" & INPUT_SHEET_NAME & "」シートが見つかりません。", vbCritical
+        Exit Function
+    End If
+
+    Set wb = wsInput.Parent   ' ★以降は必ずこのブックを操作する
+
+    Application.DisplayAlerts = False
+    If SheetExists(wb, OUTPUT_SHEET_NAME) Then wb.Worksheets(OUTPUT_SHEET_NAME).Delete
+    If SheetExists(wb, LEGEND_SHEET_NAME) Then wb.Worksheets(LEGEND_SHEET_NAME).Delete
+    Application.DisplayAlerts = True
+
+    Set wsOutput = wb.Worksheets.Add(After:=wsInput): wsOutput.Name = OUTPUT_SHEET_NAME
+    Set wsLegend = wb.Worksheets.Add(After:=wsOutput): wsLegend.Name = LEGEND_SHEET_NAME
+
     SetupWorksheets = True
 End Function
 
@@ -163,9 +186,9 @@ End Sub
 ' プール（「利用者」や「職員」などの大きな枠）を描画します。
 Private Sub DrawPool(poolName As String, top As Long, height As Long, bgColor As Long)
     Dim poolRect As Shape, poolText As Shape
-    Set poolRect = wsOutput.shapes.AddShape(msoShapeRectangle, 0, top, 20000, height)
+    Set poolRect = wsOutput.Shapes.AddShape(msoShapeRectangle, 0, top, 20000, height)
     With poolRect: .Name = "PoolRect_" & poolName: .Fill.Visible = msoFalse: .Line.Weight = 2: .Line.ForeColor.RGB = RGB(80, 80, 80): End With
-    Set poolText = wsOutput.shapes.AddTextbox(msoTextOrientationHorizontal, 0, top, POOL_TITLE_WIDTH, height)
+    Set poolText = wsOutput.Shapes.AddTextbox(msoTextOrientationHorizontal, 0, top, POOL_TITLE_WIDTH, height)
     With poolText: .Fill.ForeColor.RGB = bgColor: .Line.Visible = msoFalse
         With .TextFrame2: .TextRange.Text = poolName: .VerticalAnchor = msoAnchorMiddle
             .TextRange.ParagraphFormat.Alignment = msoAlignCenter
@@ -177,9 +200,9 @@ End Sub
 ' レーン（各担当者の行）を描画します。
 Private Sub DrawLane(laneName As String, top As Long, height As Long, bgColor As Long)
     Dim laneRect As Shape, laneText As Shape
-    Set laneRect = wsOutput.shapes.AddShape(msoShapeRectangle, POOL_TITLE_WIDTH, top, 20000 - POOL_TITLE_WIDTH, height)
+    Set laneRect = wsOutput.Shapes.AddShape(msoShapeRectangle, POOL_TITLE_WIDTH, top, 20000 - POOL_TITLE_WIDTH, height)
     With laneRect: .Name = "LaneLine_" & laneName: .Fill.Visible = msoFalse: .Line.ForeColor.RGB = RGB(180, 180, 180): .Line.DashStyle = msoLineDash: End With
-    Set laneText = wsOutput.shapes.AddTextbox(msoTextOrientationHorizontal, POOL_TITLE_WIDTH, top, LANE_HEADER_WIDTH, height)
+    Set laneText = wsOutput.Shapes.AddTextbox(msoTextOrientationHorizontal, POOL_TITLE_WIDTH, top, LANE_HEADER_WIDTH, height)
     With laneText: .Fill.ForeColor.RGB = bgColor: .Line.Visible = msoTrue: .Line.ForeColor.RGB = RGB(255, 255, 255)
         With .TextFrame2: .TextRange.Text = laneName: .VerticalAnchor = msoAnchorMiddle
             .Orientation = msoTextOrientationHorizontal
@@ -274,10 +297,10 @@ Private Function DrawShape(targetSheet As Worksheet, id As String, currentTask A
     Select Case True
         Case InStr(flowElement, "開始") > 0: shpType = msoShapeOval
         Case InStr(flowElement, "終了") > 0: shpType = msoShapeOval: shpWeight = 3
-        Case InStr(flowElement, "分岐") > 0, InStr(flowElement, "合流") > 0: shpType = msoShapeDiamond: shpColor = RGB(240, 240, 240)
+        Case InStr(flowElement, "分岐") > 0 Or InStr(flowElement, "合流") > 0: shpType = msoShapeDiamond: shpColor = RGB(240, 240, 240)
         Case Else: shpType = msoShapeRoundedRectangle
     End Select
-    Set baseShape = targetSheet.shapes.AddShape(shpType, x, y, SHAPE_WIDTH, SHAPE_HEIGHT)
+    Set baseShape = targetSheet.Shapes.AddShape(shpType, x, y, SHAPE_WIDTH, SHAPE_HEIGHT)
     With baseShape
         .Name = "Shape_" & id
         .Line.ForeColor.RGB = RGB(0, 0, 0): .Line.Weight = shpWeight: .Fill.ForeColor.RGB = shpColor
@@ -316,7 +339,7 @@ Private Sub CreateLegendSheet()
         dummyTask.Add "flowElement", key: dummyTask.Add "taskType", key: dummyTask.Add "summary", legendItems(key)
         Dim shp As Shape: Set shp = DrawShape(wsLegend, "", dummyTask, 50, currentY, isLegendItem:=True)
         shp.TextFrame2.TextRange.Text = legendItems(key)
-        currentY = currentY + shp.height + 20
+        currentY = currentY + shp.Height + 20
     Next key
     wsLegend.Columns("B:C").AutoFit
 End Sub
@@ -349,7 +372,7 @@ Private Sub ConnectTwoShapes(shp1 As Shape, shp2 As Shape, Optional branchIndex 
     If shp1.ConnectionSiteCount = 0 Or shp2.ConnectionSiteCount = 0 Then Exit Sub
     
     Dim conn As Shape
-    Set conn = wsOutput.shapes.AddConnector(CONNECTOR_TYPE, 0, 0, 100, 100)
+    Set conn = wsOutput.Shapes.AddConnector(CONNECTOR_TYPE, 0, 0, 100, 100)
     
     Dim beginConnSite As Long, endConnSite As Long
     
@@ -359,10 +382,10 @@ Private Sub ConnectTwoShapes(shp1 As Shape, shp2 As Shape, Optional branchIndex 
         endConnSite = 1   ' 左
     Else
         ' それ以外の図形は、高さに応じて最適な接続点を選びます。
-        If shp2.top > shp1.top + shp1.height / 2 Then
+        If shp2.Top > shp1.Top + shp1.Height / 2 Then
             beginConnSite = 4 ' 下
             endConnSite = 2   ' 上
-        ElseIf shp1.top > shp2.top + shp2.height / 2 Then
+        ElseIf shp1.Top > shp2.Top + shp2.Height / 2 Then
             beginConnSite = 2 ' 上
             endConnSite = 4   ' 下
         Else
@@ -384,7 +407,7 @@ End Sub
 
 ' 全ての図形が収まるように、背景の枠の幅を調整します。
 Private Sub AdjustPoolWidths()
-    If wsOutput Is Nothing Or shapeCollection.count = 0 Then Exit Sub
+    If wsOutput Is Nothing Or shapeCollection.Count = 0 Then Exit Sub
     Dim shp As Shape, maxRight As Single: maxRight = 0: Dim shpVar As Variant
     For Each shpVar In shapeCollection.Items
         Set shp = shpVar
@@ -392,9 +415,9 @@ Private Sub AdjustPoolWidths()
     Next shpVar
     Dim newWidth As Single: newWidth = maxRight + RIGHT_MARGIN
     On Error Resume Next
-    For Each shp In wsOutput.shapes
-        If Left(shp.Name, 9) = "PoolRect_" Then shp.Width = newWidth
-        If Left(shp.Name, 9) = "LaneLine_" Then shp.Width = newWidth - POOL_TITLE_WIDTH
+    For Each shp In wsOutput.Shapes
+        If Left$(shp.Name, 9) = "PoolRect_" Then shp.Width = newWidth
+        If Left$(shp.Name, 9) = "LaneLine_" Then shp.Width = newWidth - POOL_TITLE_WIDTH
     Next shp
     On Error GoTo 0
 End Sub
